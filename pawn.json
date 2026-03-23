@@ -1,0 +1,7 @@
+{
+	"user": "San-Andreas-Online",
+	"repo": "pawn-unoccupied-vehicle-damage",
+	"dependencies": [
+		"sampctl/samp-stdlib"
+	]
+}
