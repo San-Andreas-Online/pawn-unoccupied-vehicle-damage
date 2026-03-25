@@ -1,6 +1,7 @@
 {
 	"user": "San-Andreas-Online",
 	"repo": "pawn-unoccupied-vehicle-damage",
+    "include_path": "include",
 	"dependencies": [
 		"sampctl/samp-stdlib"
 	]
