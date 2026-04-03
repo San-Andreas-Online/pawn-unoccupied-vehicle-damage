@@ -4,17 +4,22 @@
 	#error You cannot include unoccupied_vehicle_damage more than once!
 #endif
 
-#define _UNOCCUPIED_VEHICLE_DAMAGE_VERSION "2.0.0"
+#define _UNOCCUPIED_VEHICLE_DAMAGE_VERSION "2.1.0"
 
-#if !defined VEHICLE_UNOCCUPIED_DAMAGE_VERSION
+#if !defined VEHICLE_ATTACK_DETECTION_DELAY_MS
 	#define VEHICLE_ATTACK_DETECTION_DELAY_MS 500
 #endif
+
+#if !defined VEHICLE_DAMAGE_UPDATE_DELAY_MS
+	#define VEHICLE_DAMAGE_UPDATE_DELAY_MS 250
+#endif
+
 #if !defined VEHICLE_COLLISION_DETECTION_DELAY_MS
 	#define VEHICLE_COLLISION_DETECTION_DELAY_MS 500
 #endif
 
 #if !defined HOLDING
-    #define HOLDING(%0) ((newkeys & (%0)) == (%0))
+	#define HOLDING(%0) ((newkeys & (%0)) == (%0))
 #endif
 
 #if !defined PRESSED
@@ -26,8 +31,8 @@
 #endif
 #define SpeedCheck(%0,%1,%2,%3,%4) floatround(floatsqroot(%4?(%0*%0+%1*%1+%2*%2):(%0*%0+%1*%1)) *%3*1.6)
 
-forward OnEmptyVehicleDamage(vehicleid, playerid, WEAPON:weaponid);
-forward OnEmptyVehicleCollide(playerid, vehicleid);
+forward OnEmptyVehicleDamage(vehicleid, issuerid, WEAPON:weaponid, Float:x, Float:y, Float:z);
+forward OnEmptyVehicleCollide(vehicleid, issuerid);
 
 static player_attack_tick[MAX_PLAYERS];
 static player_collision_tick[MAX_PLAYERS];
@@ -126,8 +131,6 @@ stock Float:GetVehicleDirectionalSpeedDifference(vehicleid, comparison_vehicleid
 
 public OnUnoccupiedVehicleUpdate(vehicleid, playerid, passenger_seat, Float:new_x, Float:new_y, Float:new_z, Float:vel_x, Float:vel_y, Float:vel_z)
 {
-	CallLocalFunction("VU_OnUnoccupiedVehicleUpdate", "iiiffffff", vehicleid, playerid, passenger_seat, new_x, new_y, new_z, vel_x, vel_y, vel_z);
-
 	new
 		Float:fVehSize[3], 
 		Float:fVehPos[3];
@@ -138,50 +141,11 @@ public OnUnoccupiedVehicleUpdate(vehicleid, playerid, passenger_seat, Float:new_
 
 	if(GetPlayerState(playerid) == PLAYER_STATE_DRIVER && (GetTickCount() - player_collision_tick[playerid]) >= VEHICLE_COLLISION_DETECTION_DELAY_MS)
 	{
-		CallRemoteFunction("OnEmptyVehicleCollide", "ii", playerid, vehicleid);
+		CallRemoteFunction("OnEmptyVehicleCollide", "ii", vehicleid, playerid);
 		player_collision_tick[playerid] = GetTickCount();
 	}
 
-	if(GetPlayerWeapon(playerid) <= WEAPON_CANE)
-	{
-		new iPlayerAnimIndex = GetPlayerAnimationIndex(playerid);
-
-		if(GetPlayerWeapon(playerid) == WEAPON_CHAINSAW)
-		{
-			new 
-				KEY:newkeys,
-				plylr,
-				plyup
-			;
-			GetPlayerKeys(playerid, newkeys, plyup, plylr);
-
-			// Chainsaw engine running
-			if(HOLDING(KEY_FIRE))
-			{
-				CallRemoteFunction("OnEmptyVehicleDamage", "iii", vehicleid, playerid, GetPlayerWeapon(playerid));
-				player_attack_tick[playerid] = GetTickCount();
-			}
-			// Chainsaw swings
-			else if((iPlayerAnimIndex >= 312  && iPlayerAnimIndex <= 322 && iPlayerAnimIndex != 320) &&
-			((GetTickCount() - player_attack_tick[playerid]) > VEHICLE_ATTACK_DETECTION_DELAY_MS))
-			{
-				CallRemoteFunction("OnEmptyVehicleDamage", "iii", vehicleid, playerid, GetPlayerWeapon(playerid));
-				player_attack_tick[playerid] = GetTickCount();
-			}
-		}
-		else if((GetPlayerWeapon(playerid) <= WEAPON_CANE && (GetTickCount()-player_attack_tick[playerid]) >= VEHICLE_ATTACK_DETECTION_DELAY_MS) &&
-				(iPlayerAnimIndex == 1136 || iPlayerAnimIndex == 1137 || iPlayerAnimIndex == 1138 || iPlayerAnimIndex == 1140 || iPlayerAnimIndex == 1141 || //Fightstyle ...
-				iPlayerAnimIndex == 17 || iPlayerAnimIndex == 18 || iPlayerAnimIndex == 19 || // Bat
-				iPlayerAnimIndex == 749 || iPlayerAnimIndex == 750 || iPlayerAnimIndex == 751 || // Knife
-				iPlayerAnimIndex == 1545 || iPlayerAnimIndex == 1546 || iPlayerAnimIndex == 1547 || // Sword
-				iPlayerAnimIndex == 423 || iPlayerAnimIndex == 424 || iPlayerAnimIndex == 425 || // Dildo
-				iPlayerAnimIndex == 533)) //Flowerattack
-		{
-			CallRemoteFunction("OnEmptyVehicleDamage", "iii", vehicleid, playerid, GetPlayerWeapon(playerid));
-			player_attack_tick[playerid] = GetTickCount();
-		}
-	}
-	return 1;
+	return CallLocalFunction("VU_OnUnoccupiedVehicleUpdate", "iiiffffff", vehicleid, playerid, passenger_seat, new_x, new_y, new_z, vel_x, vel_y, vel_z);
 }
 forward VU_OnUnoccupiedVehicleUpdate(vehicleid, playerid, passenger_seat, Float:new_x, Float:new_y, Float:new_z, Float:vel_x, Float:vel_y, Float:vel_z);
 #if defined _ALS_OnUnoccupiedVehicleUpdate
@@ -193,16 +157,85 @@ forward VU_OnUnoccupiedVehicleUpdate(vehicleid, playerid, passenger_seat, Float:
 
 public OnPlayerKeyStateChange(playerid, KEY:newkeys, KEY:oldkeys)
 {
-    if (PRESSED(KEY_FIRE)) player_attack_tick[playerid] = GetTickCount();
-    return CallLocalFunction("VU_OnPlayerKeyStateChange", "iii", playerid, newkeys, oldkeys);
+	if(((PRESSED(KEY_SECONDARY_ATTACK) || HOLDING(KEY_SECONDARY_ATTACK)) && HOLDING(KEY_AIM)) ||
+		PRESSED(KEY_FIRE) || HOLDING(KEY_FIRE))
+	{
+		#if defined foreach
+		foreach(new i : Vehicle)
+		#else
+		for (new i = 0; i < MAX_VEHICLES; i++)
+		#endif
+		{
+			if(!IsValidVehicle(i)) continue;
+				
+			new
+				Float:fVehSize[3], 
+				Float:fVehPos[3];
+			GetVehicleSize(GetVehicleModel(i), fVehSize[0], fVehSize[1], fVehSize[2]);
+			GetVehiclePos(i, fVehPos[0], fVehPos[1], fVehPos[2]);
+
+			if (!IsPlayerInRangeOfPoint(playerid, fVehSize[1], fVehPos[0], fVehPos[1], fVehPos[2])) return 1;
+
+			// If player has a melee weapon
+			if(GetPlayerWeapon(playerid) <= WEAPON_CANE)
+			{
+				new iPlayerAnimIndex = GetPlayerAnimationIndex(playerid);
+
+				if(GetPlayerWeapon(playerid) == WEAPON_CHAINSAW)
+				{
+					new
+						sAnimLib[32],
+						sAnimName[32]
+					;
+					GetAnimationName(GetPlayerAnimationIndex(playerid), sAnimLib, sizeof (sAnimLib), sAnimName, sizeof(sAnimName));
+
+					new sTargetPlayerName[MAX_PLAYER_NAME];
+					GetPlayerName(playerid, sTargetPlayerName);
+					Lang_SendText(playerid, "ADMIN_SELF_GET_PLAYER_ANIMATION", sTargetPlayerName, sAnimLib, sAnimName);
+
+					// Chainsaw swings
+					if((312 <= iPlayerAnimIndex <= 315 || iPlayerAnimIndex == 321 || iPlayerAnimIndex == 322) &&
+					((GetTickCount() - player_attack_tick[playerid]) > VEHICLE_ATTACK_DETECTION_DELAY_MS))
+					{
+						SetTimerEx("OnEmptyVehicleDamage", VEHICLE_DAMAGE_UPDATE_DELAY_MS, false, "iiifff", i, playerid, GetPlayerWeapon(playerid), fVehPos[0], fVehPos[1], fVehPos[2]);
+						player_attack_tick[playerid] = GetTickCount();
+					}
+					// Chainsaw engine running
+					else if(iPlayerAnimIndex == 319)
+					{
+						CallRemoteFunction("OnEmptyVehicleDamage", "iiifff", i, playerid, GetPlayerWeapon(playerid), fVehPos[0], fVehPos[1], fVehPos[2]);
+						player_attack_tick[playerid] = GetTickCount();
+					}
+				}
+				// Melee swings with other weapons & fists
+				else if((GetPlayerWeapon(playerid) <= WEAPON_CANE && (GetTickCount()-player_attack_tick[playerid]) >= VEHICLE_ATTACK_DETECTION_DELAY_MS) &&
+						(472 <= iPlayerAnimIndex <= 474 || iPlayerAnimIndex == 476 || iPlayerAnimIndex == 478 || // Boxing
+						482 <= iPlayerAnimIndex <= 484 || iPlayerAnimIndex == 487 || iPlayerAnimIndex == 489 || // Kung Fu
+						494 <= iPlayerAnimIndex <= 496 || iPlayerAnimIndex == 498 || iPlayerAnimIndex == 500 || // Muay Thai
+						504 <= iPlayerAnimIndex <= 505 || // Default secondary attacks
+						1136 <= iPlayerAnimIndex <= 1138 || iPlayerAnimIndex == 1140 || iPlayerAnimIndex == 1141 || // Default fight style
+						iPlayerAnimIndex == 17 || iPlayerAnimIndex == 18 || iPlayerAnimIndex == 19 || // Bat
+						iPlayerAnimIndex == 749 || iPlayerAnimIndex == 750 || iPlayerAnimIndex == 751 || // Knife
+						iPlayerAnimIndex == 1545 || iPlayerAnimIndex == 1546 || iPlayerAnimIndex == 1547 || // Sword
+						iPlayerAnimIndex == 423 || iPlayerAnimIndex == 424 || iPlayerAnimIndex == 425 || // Dildo
+						iPlayerAnimIndex == 533)) // Flowerattack
+				{
+					SetTimerEx("OnEmptyVehicleDamage", VEHICLE_DAMAGE_UPDATE_DELAY_MS, false, "iiifff", i, playerid, GetPlayerWeapon(playerid), fVehPos[0], fVehPos[1], fVehPos[2]);
+					player_attack_tick[playerid] = GetTickCount();
+				}
+			}
+		}
+	}
+	
+	return CallLocalFunction("UVD_OnPlayerKeyStateChange", "iii", playerid, newkeys, oldkeys);
 }
-forward VU_OnPlayerKeyStateChange(playerid, KEY:newkeys, KEY:oldkeys);
+forward UVD_OnPlayerKeyStateChange(playerid, KEY:newkeys, KEY:oldkeys);
 #if defined _ALS_OnPlayerKeyStateChange
 	#undef OnPlayerKeyStateChange
 #else
 	#define _ALS_OnPlayerKeyStateChange
 #endif
-#define OnPlayerKeyStateChange VU_OnPlayerKeyStateChange
+#define OnPlayerKeyStateChange UVD_OnPlayerKeyStateChange
 
 public OnPlayerWeaponShot(playerid, WEAPON:weaponid, BULLET_HIT_TYPE:hittype, hitid, Float:fX, Float:fY, Float:fZ)
 {
@@ -210,18 +243,20 @@ public OnPlayerWeaponShot(playerid, WEAPON:weaponid, BULLET_HIT_TYPE:hittype, hi
 	{
 		new bool:bVehicleOccupied;
 
-		#if defined OPEN_MP_SERVER
-			#if OPEN_MP_SERVER == true
+		#if defined OPEN_MP_SERVER && OPEN_MP_SERVER == true
 			bVehicleOccupied = IsVehicleOccupied(hitid);
+		#else
+			#if defined foreach
+				foreach(new i : Player)
 			#else
-			for(new i = 0; i < MAX_PLAYERS; i++)
-			{
-				if(IsPlayerConnected(i) && GetPlayerVehicleID(i) == hitid)
+				for(new i = 0; i < MAX_PLAYERS; i++)
 				{
-					bVehicleOccupied = true;
-					break;
+					if(IsPlayerConnected(i) && GetPlayerVehicleID(i) == hitid)
+					{
+						bVehicleOccupied = true;
+						break;
+					}
 				}
-			}
 			#endif
 		#endif
 
@@ -284,19 +319,19 @@ public OnPlayerWeaponShot(playerid, WEAPON:weaponid, BULLET_HIT_TYPE:hittype, hi
 						WEAPON_FLAMETHROWER,
 						WEAPON_MINIGUN
 					: 
-					CallRemoteFunction("OnEmptyVehicleDamage", "iii", hitid, playerid, GetPlayerWeapon(playerid));
+					CallRemoteFunction("OnEmptyVehicleDamage", "iiifff", hitid, playerid, GetPlayerWeapon(playerid), fX, fY, fZ);
 					default: return 1;
 				}
 			}
 		}
 	}
 
-    return CallLocalFunction("VU_OnPlayerWeaponShot", "iiiifff", playerid, weaponid, hittype, hitid, fX, fY, fZ);
+	return CallLocalFunction("UVD_OnPlayerWeaponShot", "iiiifff", playerid, weaponid, hittype, hitid, fX, fY, fZ);
 }
-forward VU_OnPlayerWeaponShot(playerid, WEAPON:weaponid, BULLET_HIT_TYPE:hittype, hitid, Float:fX, Float:fY, Float:fZ);
+forward UVD_OnPlayerWeaponShot(playerid, WEAPON:weaponid, BULLET_HIT_TYPE:hittype, hitid, Float:fX, Float:fY, Float:fZ);
 #if defined _ALS_OnPlayerWeaponShot
 	#undef OnPlayerWeaponShot
 #else
 	#define _ALS_OnPlayerWeaponShot
 #endif
-#define OnPlayerWeaponShot VU_OnPlayerWeaponShot
+#define OnPlayerWeaponShot UVD_OnPlayerWeaponShot
