@@ -100,13 +100,14 @@ OnEmptyVehicleDamage(vehicleid, playerid, WEAPON:weaponid)
 > - **vehicleid**: ID of the damaged vehicle.
 > - **playerid**: ID of the player who caused the damage.
 > - **weaponid**: Weapon used to deal damage.
+> - **x, y, z**: Coordinates where the damage occurred.
 
 #### Example usage of OnEmptyVehicleDamage
 
 ```pawn
-public OnEmptyVehicleDamage(vehicleid, playerid, WEAPON:weaponid)
+public OnEmptyVehicleDamage(vehicleid, playerid, WEAPON:weaponid, Float:x, Float:y, Float:z)
 {
-  printf("[UVD] Vehicle %d damaged by player %d with weapon %d", vehicleid, playerid, _:weaponid);
+  printf("[UVD] Vehicle %d damaged by player %d with weapon %d at position (%.2f, %.2f, %.2f)", vehicleid, playerid, _:weaponid, x, y, z);
   return 1;
 }
 ```
