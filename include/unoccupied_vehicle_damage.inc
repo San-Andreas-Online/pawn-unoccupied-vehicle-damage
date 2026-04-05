@@ -4,7 +4,7 @@
 	#error You cannot include unoccupied_vehicle_damage more than once!
 #endif
 
-#define _UNOCCUPIED_VEHICLE_DAMAGE_VERSION "2.1.2"
+#define _UNOCCUPIED_VEHICLE_DAMAGE_VERSION "2.1.3"
 
 #if !defined VEHICLE_ATTACK_DETECTION_DELAY_MS
 	#define VEHICLE_ATTACK_DETECTION_DELAY_MS 500
@@ -246,7 +246,7 @@ public OnPlayerWeaponShot(playerid, WEAPON:weaponid, BULLET_HIT_TYPE:hittype, hi
 	{
 		new bool:bVehicleOccupied;
 
-		#if defined OPEN_MP_SERVER && OPEN_MP_SERVER == true
+		#if defined IsVehicleOccupied
 			bVehicleOccupied = IsVehicleOccupied(hitid);
 		#else
 			#if defined foreach
