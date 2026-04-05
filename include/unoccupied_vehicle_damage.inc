@@ -4,7 +4,7 @@
 	#error You cannot include unoccupied_vehicle_damage more than once!
 #endif
 
-#define _UNOCCUPIED_VEHICLE_DAMAGE_VERSION "2.1.1"
+#define _UNOCCUPIED_VEHICLE_DAMAGE_VERSION "2.1.2"
 
 #if !defined VEHICLE_ATTACK_DETECTION_DELAY_MS
 	#define VEHICLE_ATTACK_DETECTION_DELAY_MS 500
@@ -162,11 +162,12 @@ public OnPlayerKeyStateChange(playerid, KEY:newkeys, KEY:oldkeys)
 	{
 		#if defined foreach
 		foreach(new i : Vehicle)
+		{
 		#else
 		for (new i = 0; i < MAX_VEHICLES; i++)
-		#endif
 		{
 			if(!IsValidVehicle(i)) continue;
+		#endif
 				
 			new
 				Float:fVehSize[3], 
