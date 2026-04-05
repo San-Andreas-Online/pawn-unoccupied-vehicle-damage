@@ -4,7 +4,7 @@
 	#error You cannot include unoccupied_vehicle_damage more than once!
 #endif
 
-#define _UNOCCUPIED_VEHICLE_DAMAGE_VERSION "2.1.0"
+#define _UNOCCUPIED_VEHICLE_DAMAGE_VERSION "2.1.1"
 
 #if !defined VEHICLE_ATTACK_DETECTION_DELAY_MS
 	#define VEHICLE_ATTACK_DETECTION_DELAY_MS 500
@@ -173,6 +173,8 @@ public OnPlayerKeyStateChange(playerid, KEY:newkeys, KEY:oldkeys)
 				Float:fVehPos[3];
 			GetVehicleSize(GetVehicleModel(i), fVehSize[0], fVehSize[1], fVehSize[2]);
 			GetVehiclePos(i, fVehPos[0], fVehPos[1], fVehPos[2]);
+			new Float:fPlayerPos[3];
+			GetPlayerPos(playerid, fPlayerPos[0], fPlayerPos[1], fPlayerPos[2]);
 
 			if (!IsPlayerInRangeOfPoint(playerid, fVehSize[1], fVehPos[0], fVehPos[1], fVehPos[2])) return 1;
 
@@ -203,7 +205,7 @@ public OnPlayerKeyStateChange(playerid, KEY:newkeys, KEY:oldkeys)
 					// Chainsaw engine running
 					else if(iPlayerAnimIndex == 319)
 					{
-						CallRemoteFunction("OnEmptyVehicleDamage", "iiifff", i, playerid, GetPlayerWeapon(playerid), fVehPos[0], fVehPos[1], fVehPos[2]);
+						CallRemoteFunction("OnEmptyVehicleDamage", "iiifff", i, playerid, GetPlayerWeapon(playerid), fPlayerPos[0]-fVehPos[0], fPlayerPos[1]-fVehPos[1], fPlayerPos[2]-fVehPos[2]);
 						player_attack_tick[playerid] = GetTickCount();
 					}
 				}
@@ -220,7 +222,7 @@ public OnPlayerKeyStateChange(playerid, KEY:newkeys, KEY:oldkeys)
 						iPlayerAnimIndex == 423 || iPlayerAnimIndex == 424 || iPlayerAnimIndex == 425 || // Dildo
 						iPlayerAnimIndex == 533)) // Flowerattack
 				{
-					SetTimerEx("OnEmptyVehicleDamage", VEHICLE_DAMAGE_UPDATE_DELAY_MS, false, "iiifff", i, playerid, GetPlayerWeapon(playerid), fVehPos[0], fVehPos[1], fVehPos[2]);
+					SetTimerEx("OnEmptyVehicleDamage", VEHICLE_DAMAGE_UPDATE_DELAY_MS, false, "iiifff", i, playerid, GetPlayerWeapon(playerid), fPlayerPos[0]-fVehPos[0], fPlayerPos[1]-fVehPos[1], fPlayerPos[2]-fVehPos[2]);
 					player_attack_tick[playerid] = GetTickCount();
 				}
 			}
